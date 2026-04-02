@@ -1,1 +1,0 @@
-docker run --privileged --net=host --ipc=host --gpus=all --runtime=nvidia -v /home/:/home/ -w /tmp -it pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel
