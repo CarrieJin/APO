@@ -28,12 +28,12 @@ def parse_sectioned_prompt(s):
     return result
 
 
-def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024, 
-                  presence_penalty=0, frequency_penalty=0, logit_bias={}, timeout=10):
+def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024,
+                  presence_penalty=0, frequency_penalty=0, logit_bias={}):
     messages = [{"role": "user", "content": prompt}]
     payload = {
         "messages": messages,
-        "model": "gpt-3.5-turbo",
+        "model": config.CHAT_MODEL,
         "temperature": temperature,
         "n": n,
         "top_p": top_p,
@@ -43,25 +43,23 @@ def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024,
         "frequency_penalty": frequency_penalty,
         "logit_bias": logit_bias
     }
-    retries = 0
-    while True:
+    for attempt in range(5):
         try:
-            r = requests.post('https://api.openai.com/v1/chat/completions',
+            r = requests.post(f'{config.API_BASE}/v1/chat/completions',
                 headers = {
-                    "Authorization": f"Bearer {config.OPENAI_KEY}",
+                    "Authorization": f"Bearer {config.API_KEY}",
                     "Content-Type": "application/json"
                 },
                 json = payload,
-                timeout=timeout
+                timeout=None
             )
-            if r.status_code != 200:
-                retries += 1
-                time.sleep(1)
-            else:
+            if r.status_code == 200:
                 break
-        except requests.exceptions.ReadTimeout:
             time.sleep(1)
-            retries += 1
+        except requests.exceptions.RequestException:
+            time.sleep(1)
+    else:
+        raise RuntimeError(f'chatgpt: API request failed after 5 attempts')
     r = r.json()
     return [choice['message']['content'] for choice in r['choices']]
 
@@ -69,29 +67,29 @@ def chatgpt(prompt, temperature=0.7, n=1, top_p=1, stop=None, max_tokens=1024,
 def instructGPT_logprobs(prompt, temperature=0.7):
     payload = {
         "prompt": prompt,
-        "model": "text-davinci-003",
+        "model": config.CHAT_MODEL,
         "temperature": temperature,
         "max_tokens": 1,
         "logprobs": 1,
         "echo": True
     }
-    while True:
+    for attempt in range(5):
         try:
-            r = requests.post('https://api.openai.com/v1/completions',
+            r = requests.post(f'{config.API_BASE}/v1/completions',
                 headers = {
-                    "Authorization": f"Bearer {config.OPENAI_KEY}",
+                    "Authorization": f"Bearer {config.API_KEY}",
                     "Content-Type": "application/json"
                 },
                 json = payload,
-                timeout=10
-            )  
-            if r.status_code != 200:
-                time.sleep(2)
-                retries += 1
-            else:
+                timeout=None
+            )
+            if r.status_code == 200:
                 break
-        except requests.exceptions.ReadTimeout:
-            time.sleep(5)
+            time.sleep(2)
+        except requests.exceptions.RequestException:
+            time.sleep(2)
+    else:
+        raise RuntimeError('instructGPT_logprobs: API request failed after 5 attempts')
     r = r.json()
     return r['choices']
 

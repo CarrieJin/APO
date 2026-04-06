@@ -120,10 +120,56 @@ class DefaultHFBinaryTask(BinaryClassificationTask):
             row = json.loads(row.strip())
             exs.append({'id': f'train-{i}', 'label': row['label'], 'text': row['text']})
         return exs
-    
+
     def get_test_examples(self):
         exs = []
         for i, row in enumerate(open(self.data_dir + '/test.jsonl')):
             row = json.loads(row.strip())
             exs.append({'id': f'test-{i}', 'label': row['label'], 'text': row['text']})
         return exs
+
+
+class GSM8KTask(DataProcessor):
+    """Task for GSM8K math word problems. Labels are string integers (e.g. '72')."""
+
+    def get_train_examples(self):
+        exs = []
+        for i, row in enumerate(open(self.data_dir + '/train.jsonl')):
+            row = json.loads(row.strip())
+            exs.append({'id': f'train-{i}', 'label': row['label'], 'text': row['text']})
+        return exs
+
+    def get_test_examples(self):
+        exs = []
+        for i, row in enumerate(open(self.data_dir + '/test.jsonl')):
+            row = json.loads(row.strip())
+            exs.append({'id': f'test-{i}', 'label': row['label'], 'text': row['text']})
+        return exs
+
+    def stringify_prediction(self, pred):
+        return str(pred)
+
+    def run_evaluate(self, predictor, prompt, test_exs, n=100):
+        labels = []
+        preds = []
+        texts = []
+        with concurrent.futures.ProcessPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = [executor.submit(process_example, ex, predictor, prompt) for ex in test_exs[:n]]
+            for i, future in tqdm(enumerate(concurrent.futures.as_completed(futures)), total=len(futures), desc='running evaluate'):
+                ex, pred = future.result()
+                texts.append(ex['text'])
+                labels.append(ex['label'])
+                preds.append(pred)
+
+        correct = sum(1 for l, p in zip(labels, preds) if l == p)
+        accuracy = correct / len(labels) if labels else 0.0
+        return accuracy, texts, labels, preds
+
+    def evaluate(self, predictor, prompt, test_exs, n=100):
+        while True:
+            try:
+                accuracy, texts, labels, preds = self.run_evaluate(predictor, prompt, test_exs, n=n)
+                break
+            except (concurrent.futures.process.BrokenProcessPool, requests.exceptions.SSLError):
+                pass
+        return accuracy, texts, labels, preds

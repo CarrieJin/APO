@@ -21,6 +21,8 @@ def get_task_class(task_name):
         return tasks.DefaultHFBinaryTask
     elif task_name == 'ar_sarcasm':
         return tasks.DefaultHFBinaryTask
+    elif task_name == 'gsm8k':
+        return tasks.GSM8KTask
     else:
         raise Exception(f'Unsupported task: {task_name}')
 
@@ -46,6 +48,13 @@ def get_scorer(scorer):
         return scorers.CachedLogLikelihoodScorer
     else:
         raise Exception(f'Unsupported scorer: {scorer}')
+
+
+def get_predictor(task_name, config):
+    if task_name == 'gsm8k':
+        return predictors.GSM8KPredictor(config)
+    else:
+        return predictors.BinaryPredictor(config)
 
 
 def get_args():
@@ -100,7 +109,7 @@ if __name__ == '__main__':
     scorer = get_scorer(args.scorer)()
     evaluator = get_evaluator(args.evaluator)(config)
     bf_eval = get_evaluator('bf')(config)
-    gpt4 = predictors.BinaryPredictor(config)
+    gpt4 = get_predictor(args.task, config)
 
     optimizer = optimizers.ProTeGi(
         config, evaluator, scorer, args.max_threads, bf_eval)

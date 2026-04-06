@@ -32,7 +32,6 @@ class ProTeGi(PromptOptimizer):
         sample_labels = [labels[i] for i in sample_idxs]
         sample_preds = [preds[i] for i in sample_idxs]
         error_string = ''
-        num_errors = 0
         error_idx = 0
         for i, (t, l, p) in enumerate(zip(sample_texts, sample_labels, sample_preds)):
             error_string += f'## Example {error_idx+1}\n'
@@ -58,8 +57,8 @@ class ProTeGi(PromptOptimizer):
     def _get_gradients(self, prompt, error_string, num_feedbacks=5, n=1):
         """ Get "gradients" for a prompt based on the error string."""
         gradient_prompt = f"""
-        I'm trying to write a zero-shot classifier prompt.
-    
+        I'm trying to write a prompt for solving tasks.
+
         My current prompt is:
         "{prompt}"
 
@@ -72,16 +71,15 @@ class ProTeGi(PromptOptimizer):
         gradient_prompt = '\n'.join([line.lstrip() for line in gradient_prompt.split('\n')])
         res = utils.chatgpt(gradient_prompt, n=n)
         feedbacks = []
-        new_prompts = []
-        for r in res:    
+        for r in res:
             feedbacks += self.parse_tagged_text(r, "<START>", "<END>")
         return feedbacks
 
     def apply_gradient(self, prompt, error_str, feedback_str, steps_per_gradient, n=1):
         """ Incorporate feedback gradient into a prompt."""
         transformation_prompt = f"""
-        I'm trying to write a zero-shot classifier.
-        
+        I'm trying to write a prompt for solving tasks.
+
         My current prompt is:
         "{prompt}"
 
@@ -109,7 +107,7 @@ class ProTeGi(PromptOptimizer):
         new_instructions = [x for x in new_instructions if x]
         return new_instructions
 
-    def get_gradients(self, prompt, task_section, task, gpt4, texts, labels, preds):
+    def get_gradients(self, task_section, task, texts, labels, preds):
         """ Get "gradients" for a prompt based on sampled error strings."""
         prompt_feedbacks = []
         for _ in tqdm(range(self.opt['n_gradients']), total=self.opt['n_gradients'], desc='gradients..'):
@@ -137,7 +135,7 @@ class ProTeGi(PromptOptimizer):
             # get gradients
             new_task_sections = []
             if self.opt['n_gradients'] > 0:
-                gradients = self.get_gradients(prompt, task_section, task, gpt4, texts, labels, preds)
+                gradients = self.get_gradients(task_section, task, texts, labels, preds)
                 new_task_sections = []
                 for feedback, error_string in tqdm(gradients, desc='applying gradients'):
                     tmp = self.apply_gradient(
@@ -164,7 +162,7 @@ class ProTeGi(PromptOptimizer):
             if len(new_sections) > self.opt['max_expansion_factor']:
                 if self.opt['reject_on_errors']:
                     error_exs = []
-                    for i, (t, l, p) in enumerate(zip(texts, labels, preds)):
+                    for t, l, p in zip(texts, labels, preds):
                         if l != p:
                             error_exs.append({'text': t, 'label': l})
                     error_exs = random.sample(error_exs, min(len(error_exs), 16))
